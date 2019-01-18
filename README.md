@@ -1,21 +1,17 @@
-# unsupervised-preprocessing
+By running `produce_all_figures_from_scratch.py`, you should be able to exactly reproduce the figures in the paper.
 
-Supporting code for the paper
-    "Rescaling and other forms of unsupervised preprocessing may bias cross-validation"
-    by Amit Moscovich and Saharon Rosset.
+Using the default number of repetitions (as used in the paper), this simulation takes 1-2 years on a single core. Therefore it is highly recommended to:
+1. Do a test run with much smaller values of the constants RESCALED_LASSO_LOW_DIM_N_REPETITIONS, etc.
+1. Run this program on a strong multi-core machine. The code automatically parallelizes the simulations using Python's multiprocessing.Pool.
 
-By running this program, you should be able to exactly reproduce the figures in the paper.
-However, using the number of repetitions used in the paper, this simulation takes
-several years of single-core computation.
+# Prerequisites
 
-It is highly recommended to:
-1) Do a test run with much smaller values of the constants RESCALED_LASSO_LOW_DIM_N_REPETITIONS, etc.
-2) Run this program on a strong multi-core machine.
-   (the code automatically parallelizes the simulations using Python's multiprocessing.Pool)
-
-To run this, you need an installation of Python 3 with SciPy, scikit-learn and matplotlib.
+An installation of Python 3 with SciPy, scikit-learn, mkl and mkl_random modules.
 The easiest way to get this setup is to download the Anaconda python distribution.
 
-Author:
-    Amit Moscovich
-    amit@moscovich.org
+# Contact
+
+Feel free to shoot me an email.
+
+Amit Moscovich
+amit@moscovich.org
