@@ -6,8 +6,12 @@ Using the default number of repetitions (as used in the paper), this simulation 
 
 # Prerequisites
 
-An installation of Python 3 with SciPy, scikit-learn, mkl and mkl_random modules.
-The easiest way to get this setup is to download the Anaconda python distribution.
+Python 3 is required with SciPy, scikit-learn, mkl and mkl_random modules.
+The easiest way to install these to download the Anaconda python distribution.
+
+Since the figures use latex rendering for the labels, you need:
+* TeXLive. The `latex` binary must be in the command path.
+* dvipdf and dvipng
 
 # Contact
 
