@@ -19,28 +19,45 @@
 
 import grouping_rare_categories
 import rescaled_lasso
+import variable_selected_linear_regression
+from utils import Timer
 
 
-GROUPING_RARE_CATEGORIES_N_REPETITIONS = 10**3
+GROUPING_RARE_CATEGORIES_N_REPETITIONS = 10**7
 
-RESCALED_LASSO_LOW_DIM_N_REPETITIONS = 10**3
-RESCALED_LASSO_HIGH_DIM_N_REPETITIONS = 10**2
+VARIABLE_SELECTED_LIN_REG_REPS_LOWDIM = 10**6
+VARIABLE_SELECTED_LIN_REG_REPS_HIGHDIM = 10**6
+
+RESCALED_LASSO_LOW_DIM_N_REPETITIONS = 10**6
+RESCALED_LASSO_HIGH_DIM_N_REPETITIONS = 10**6
 
 
-print('\nWarning! running these computations on a single core will take more than a year.')
-print('It is recommended to first try to run the computations with a much lower number of repetitions than the defaults here.\n')
-print('==== Running precalculations for the figures of Example 1 ====')
-grouping_rare_categories.precalc_all(GROUPING_RARE_CATEGORIES_N_REPETITIONS)
+def precalc_all():
+    with Timer('==== Running precalculations for the figures of Example 1 ===='):
+        grouping_rare_categories.precalc_all(GROUPING_RARE_CATEGORIES_N_REPETITIONS)
 
-print('==== Running precalculations for the figures of Example 2 ====')
-rescaled_lasso.precalc_all(RESCALED_LASSO_LOW_DIM_N_REPETITIONS, RESCALED_LASSO_HIGH_DIM_N_REPETITIONS)
+    with Timer('==== Running precalculations for the figures of Example 2 ===='):
+        variable_selected_linear_regression.precalc_all(VARIABLE_SELECTED_LIN_REG_REPS_LOWDIM, VARIABLE_SELECTED_LIN_REG_REPS_HIGHDIM)
 
-print('================================================================')
-print('==== FINISED CALCULATIONS ======================================')
-print('================================================================')
+    with Timer('==== Running precalculations for the figures of Example 3 ===='):
+        rescaled_lasso.precalc_all(RESCALED_LASSO_LOW_DIM_N_REPETITIONS, RESCALED_LASSO_HIGH_DIM_N_REPETITIONS)
 
-print('==== Generating all figures from precalculations ====')
-print("(if this step fails, you don't need to rerun the lengthy precalculations)")
-grouping_rare_categories.plot_all()
-rescaled_lasso.plot_all()
+def plot_all():
+    grouping_rare_categories.plot_all()
+    rescaled_lasso.plot_all()
+    variable_selected_linear_regression.plot_all()
+
+def main():
+    print('\nWarning! running these computations on a single core will take more than a year.')
+    print('It is recommended to first try to run the computations with a much lower number of repetitions than the defaults here.\n')
+    precalc_all()
+
+    print('================================================================')
+    print('==== FINISED CALCULATIONS ======================================')
+    print('================================================================')
+
+    print('==== Generating all figures from precalculations ====')
+    print("(if this step fails, you don't need to rerun the lengthy precalculations)")
+    plot_all()
+
 

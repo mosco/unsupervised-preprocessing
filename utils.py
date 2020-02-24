@@ -28,3 +28,29 @@ class Timer(object):
     def __exit__(self, type, value, tb):
         self.stop()
 
+
+class Profiler(object):
+    def __init__(self):
+        import cProfile
+        self.pr = cProfile.Profile()
+        self.pr.enable()
+    def stop(self):
+        self.pr.disable()
+        import pstats
+        ps = pstats.Stats(self.pr)
+        ps.sort_stats('cumtime').print_stats(50)
+    def __enter__(self):
+        return self
+    def __exit__(self, type, value, tb):
+        self.stop()
+
+
+def beep():
+    import sys
+    if sys.platform == 'darwin':
+        import os
+        os.system('say beep!')
+        os.system('say bop!')
+        os.system('say boop!')
+    else:
+        print('\a'*10)

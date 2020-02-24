@@ -28,8 +28,9 @@ def dump(filename, **kwargs):
     mkdir_recursively(PICKLES_PATH)
     filename = _pickled_name(filename)
 
-    frame = inspect.getouterframes(inspect.currentframe())[1]
-    metadata = {'caller': '{}() in {}:{}'.format(frame.function, frame.filename, frame.lineno), 'caller_cnotext': frame.code_context, 'date': time.ctime()}
+    #frame = inspect.getouterframes(inspect.currentframe())[1]
+    #metadata = {'caller': '{}() in {}:{}'.format(frame.function, frame.filename, frame.lineno), 'caller_cnotext': frame.code_context, 'date': time.ctime()}
+    metadata = {'date': time.ctime()}
 
     print('Saving to', filename)
     print("Saved fields: ", ', '.join(sorted(kwargs.keys())))
@@ -51,5 +52,5 @@ def load(name):
     with gzip.GzipFile(filename, 'rb') as f:
         d = pickle.load(f)
     print('Creation time:', d['metadata']['date'])
-    print('Caller:', d['metadata']['caller'])
+    #print('Caller:', d['metadata']['caller'])
     return StructFromDict(d['data'])
