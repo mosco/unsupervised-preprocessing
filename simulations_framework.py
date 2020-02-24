@@ -20,7 +20,6 @@ import numpy as np
 import mkl
 import mkl_random
 from sklearn.utils import shuffle
-from sklearn.metrics import mean_squared_error
 
 from utils import Timer
 import pickler
@@ -72,7 +71,7 @@ def parallel_montecarlo(filename, mapper, reducer, jobs_params, n_repetitions, s
     mkl.set_num_threads(1)
     if n_cpu is None:
         n_cpu = get_n_cpu()
-    print(f'n_cpu: {n_cpu}')
+    #print(f'n_cpu: {n_cpu}')
 
     SEED = seed if seed is not None else 0
     N_SEED_INTS = 4
@@ -86,9 +85,14 @@ def parallel_montecarlo(filename, mapper, reducer, jobs_params, n_repetitions, s
     results_grouped_by_params = [results[i::len(jobs_params)] for i in range(len(jobs_params))]
     reduced_results = list(map(reducer, results_grouped_by_params))
 
-    pickler.dump(filename, name=filename, xs=jobs_params, results=np.array(reduced_results), n_repetitions=n_repetitions, seed=SEED)
+    if filename is not None:
+        pickler.dump(filename, name=filename, xs=jobs_params, results=np.array(reduced_results), n_repetitions=n_repetitions, seed=SEED)
 
     return reduced_results
+
+
+def mean_squared_error(Y_true, Y_predicted):
+    return np.mean((Y_true - Y_predicted)**2)
 
 
 def simulate_validation_vs_holdout_mse(n_train, n_validation, n_holdout, data_generator, transformation, predictor):
@@ -96,8 +100,9 @@ def simulate_validation_vs_holdout_mse(n_train, n_validation, n_holdout, data_ge
     This is the main function used to estimate the validation and generalization errors for a predictor
     which is run on samples that underwent a preliminary unsupervised transformation.
     """
-    (X_unshuffled,Y_unshuffled) = data_generator.generate(n_train+n_validation+n_holdout)
-    (X,Y) = shuffle(X_unshuffled, Y_unshuffled)
+    #(X_unshuffled,Y_unshuffled) = data_generator.generate(n_train+n_validation+n_holdout)
+    #(X,Y) = shuffle(X_unshuffled, Y_unshuffled)
+    (X,Y) = data_generator.generate(n_train+n_validation+n_holdout)
 
     Xtrain = X[:n_train]
     Ytrain = Y[:n_train]
@@ -108,16 +113,27 @@ def simulate_validation_vs_holdout_mse(n_train, n_validation, n_holdout, data_ge
 
     Xtrainval = X[:n_train+n_validation]
     transformation.fit(Xtrainval)
+    #print(f'Transformed X: {transformation.transform(X)}')
     predictor.fit(transformation.transform(Xtrain), Ytrain)
+    #print(f'predictor.coef_: {predictor.coef_}')
 
     Yvalidation_pred = predictor.predict(transformation.transform(Xvalidation))
+    #print(f'Yvalidation_pred = {Yvalidation_pred}')
+
     validation_mse = mean_squared_error(Yvalidation, Yvalidation_pred)
+    #print(f'validation_mse = {validation_mse}')
 
     Yholdout_pred = predictor.predict(transformation.transform(Xholdout))
+    #print(f'Yholdout_pred = {Yholdout_pred}')
     holdout_mse = mean_squared_error(Yholdout, Yholdout_pred)
 
     return (validation_mse, holdout_mse)
 
+
+def average_and_std(values):
+    arr = np.array(values)
+    assert arr.ndim == 1 
+    return (np.mean(arr), np.std(arr))
 
 def pairs_average_and_std(pairs):
     arr = np.array(pairs)
