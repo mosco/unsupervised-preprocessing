@@ -21,11 +21,11 @@ text.usetex: True
 #legend.fontsize: 8 # was 10
 #xtick.labelsize: 6 
 #ytick.labelsize: 6 
-axes.labelsize: 12
-axes.titlesize: 11 
-legend.fontsize: 8
-xtick.labelsize: 10 
-ytick.labelsize: 10 
+axes.labelsize: 13
+axes.titlesize: 12 
+legend.fontsize: 9
+xtick.labelsize: 11 
+ytick.labelsize: 11 
  
 # From fivethirtyeight
 #axes.prop_cycle: cycler('color', ['30a2da', 'fc4f30', 'e5ae38', '6d904f', '8b8b8b']) + cycler('marker', ['o', 'd', 's', '*', '>']) + cycler('markeredgecolor', ['k']*5)

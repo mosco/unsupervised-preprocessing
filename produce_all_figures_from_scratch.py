@@ -42,10 +42,12 @@ def precalc_all():
     with Timer('==== Running precalculations for the figures of Example 3 ===='):
         rescaled_lasso.precalc_all(RESCALED_LASSO_LOW_DIM_N_REPETITIONS, RESCALED_LASSO_HIGH_DIM_N_REPETITIONS)
 
+
 def plot_all():
     grouping_rare_categories.plot_all()
     rescaled_lasso.plot_all()
     variable_selected_linear_regression.plot_all()
+
 
 def main():
     print('\nWarning! running these computations on a single core will take more than a year.')
@@ -61,3 +63,5 @@ def main():
     plot_all()
 
 
+if __name__ == '__main__':
+    main()

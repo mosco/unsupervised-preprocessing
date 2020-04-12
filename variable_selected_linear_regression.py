@@ -250,7 +250,7 @@ def precalc(simulation_function, n_range, D, df, K_strong_columns, strong_column
         
 
 
-def plot_test_vs_validation_set(D, df, K_strong_columns, strong_column_multiplier, K, xlim=None, ylim=None, xticks=None, yticks=None):
+def plot_test_vs_validation_set(filename_prefix, D, df, K_strong_columns, strong_column_multiplier, K, xlim=None, ylim=None, xticks=None, yticks=None):
     """
     Plot a single figure which compares the expected validation and generalization errors
     for various numbers of training samples (n), using either m=1 or m=n validation samples.
@@ -288,10 +288,14 @@ def plot_test_vs_validation_set(D, df, K_strong_columns, strong_column_multiplie
         plt.yticks(yticks)
     
     plt.legend(loc='best')
-    output_name = f'variable_selected_linear_regression_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}_reps{d.n_repetitions}'
+    output_name = f'{filename_prefix}_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}_reps{d.n_repetitions}'
     save_figure(output_name)
 
-def precalc_all(reps_lowdim, reps_highdim):
+
+def precalc_all(reps_lowdim=1000000, reps_highdim=1000000):
+    # To simplify the code, we use t-distribution with 1,000,000 degrees of freedom when we want to generate Gaussian data.
+    # (asymptotically the t distribution converges to N(0,1))
+
     print(f'Precalculating variable-selected linear regression D=100, t-distribution df=4, #repetitions = {reps_lowdim}')
     precalc(simulate, n_range=range(15,50,5), D=100, df=4, K_strong_columns=4, strong_column_multiplier=4, K=8, reps=reps_lowdim) 
     print(f'Precalculating variable-selected linear regression D=100, N(0,1), #repetitions = {reps_lowdim}')
@@ -303,19 +307,19 @@ def precalc_all(reps_lowdim, reps_highdim):
     precalc(simulate, n_range=range(20,160,10), D=1000, df=1000000, K_strong_columns=4, strong_column_multiplier=16, K=8, reps=reps_highdim) 
 
     print(f'Precalculating variable-selected linear regression D=50, t-distribution df=4, K=1, #repetitions = {reps_lowdim}')
-    precalc(simulate, n_range=range(5,50,5), D=50, df=4, K_strong_columns=1, strong_column_multiplier=1, K=1, reps=reps_lowdim)
+    precalc(simulate_ss, n_range=range(5,50,5), D=50, df=4, K_strong_columns=1, strong_column_multiplier=1, K=1, reps=reps_lowdim)
     print(f'Precalculating variable-selected linear regression D=50, N(0,1), K=1, #repetitions = {reps_lowdim}')
-    precalc(simulate, n_range=range(5,50,5), D=50, df=1000000, K_strong_columns=1, strong_column_multiplier=1, K=1, reps=reps_lowdim)
-    #precalc(simulate_ss, n_range=range(5,50,5), D=50, df=1000001, K_strong_columns=1, strong_column_multiplier=1, K=1, reps=reps_lowdim)
+    precalc(simulate_ss, n_range=range(5,50,5), D=50, df=1000000, K_strong_columns=1, strong_column_multiplier=1, K=1, reps=reps_lowdim)
+
 
 def plot_all():
-    plot_test_vs_validation_set(D=100, df=4, K_strong_columns=4, strong_column_multiplier=4, K=8, xlim=[15,45], ylim=[200,800]) 
-    plot_test_vs_validation_set(D=100, df=1000000, K_strong_columns=4, strong_column_multiplier=4, K=8)#, xlim=[15,45], ylim=[200,800]) 
+    plot_test_vs_validation_set('variance_filtered_linear_regression', D=100, df=4, K_strong_columns=4, strong_column_multiplier=4, K=8, xticks=range(15,50,5), ylim=[200,800]) 
+    plot_test_vs_validation_set('variance_filtered_linear_regression',D=100, df=1000000, K_strong_columns=4, strong_column_multiplier=4, K=8, xticks=range(15,50,5))#, xlim=[15,45], ylim=[200,800]) 
 
-    plot_test_vs_validation_set(D=1000, df=4, K_strong_columns=4, strong_column_multiplier=16, K=8, xlim=[20,150], ylim=[2000,6000], xticks=np.arange(20,160,20)) 
-    plot_test_vs_validation_set(D=1000, df=1000000, K_strong_columns=4, strong_column_multiplier=16, K=8, xlim=[20,150], ylim=[1000,1500], xticks=np.arange(20,160,20))#, xlim=[20,200], ylim=[2000,6000]) 
+    plot_test_vs_validation_set('variance_filtered_linear_regression', D=1000, df=4, K_strong_columns=4, strong_column_multiplier=16, K=8, xlim=[20,150], ylim=[2000,6000], xticks=np.arange(20,160,20)) 
+    plot_test_vs_validation_set('variance_filtered_linear_regression', D=1000, df=1000000, K_strong_columns=4, strong_column_multiplier=16, K=8, xlim=[20,150], ylim=[1000,1500], xticks=np.arange(20,160,20))#, xlim=[20,200], ylim=[2000,6000]) 
 
-    plot_test_vs_validation_set(D=50, df=4, K_strong_columns=1, strong_column_multiplier=1, K=1, xlim=[5,40], xticks=np.arange(5,45,5)) 
-    plot_test_vs_validation_set(D=50, df=1000000, K_strong_columns=1, strong_column_multiplier=1, K=1, xlim=[5,40], xticks=np.arange(5,45,5)) 
+    plot_test_vs_validation_set('norm_filtered_linear_regression', D=50, df=4, K_strong_columns=1, strong_column_multiplier=1, K=1, xlim=[5,40], xticks=np.arange(5,45,5)) 
+    plot_test_vs_validation_set('norm_filtered_linear_regression', D=50, df=1000000, K_strong_columns=1, strong_column_multiplier=1, K=1, xlim=[5,40], xticks=np.arange(5,45,5)) 
 
 
