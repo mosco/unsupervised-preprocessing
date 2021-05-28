@@ -15,8 +15,11 @@ import functools
 import itertools
 import multiprocessing
 import socket
+import itertools
+
 
 import numpy as np
+import scipy
 import mkl
 import mkl_random
 from sklearn.utils import shuffle
@@ -30,10 +33,13 @@ DPI = 100
 
 
 def get_n_cpu():
-    if socket.gethostname() == 'john-01':
-        return 24
+    hostname = socket.gethostname()
+    if hostname == 'latte.math.princeton.edu.private':
+        return 40
+    elif hostname == 'chai.math.princeton.edu.private':
+        return 60
     else:
-        return max(1, multiprocessing.cpu_count())
+        return max(1, int(multiprocessing.cpu_count()/2))
 
 
 def set_random_seed_and_apply_func(func, random_seed, func_params):
@@ -79,8 +85,11 @@ def parallel_montecarlo(filename, mapper, reducer, jobs_params, n_repetitions, s
     iteration_parameters = zip(mkl_random.randint(0, 2**32, size=(len(jobs_params)*n_repetitions, N_SEED_INTS)), itertools.cycle(jobs_params)) 
 
     wrapped_job_computation_func = functools.partial(set_random_seed_and_apply_func, mapper)
-    with multiprocessing.Pool(processes=n_cpu) as p:
-        results = list(p.starmap(wrapped_job_computation_func, iteration_parameters))
+    if n_cpu == 1:
+        results = list(itertools.starmap(wrapped_job_computation_func, iteration_parameters))
+    else:
+        with multiprocessing.Pool(processes=n_cpu) as p:
+            results = list(p.starmap(wrapped_job_computation_func, iteration_parameters))
 
     results_grouped_by_params = [results[i::len(jobs_params)] for i in range(len(jobs_params))]
     reduced_results = list(map(reducer, results_grouped_by_params))
@@ -135,8 +144,10 @@ def average_and_std(values):
     assert arr.ndim == 1 
     return (np.mean(arr), np.std(arr))
 
+
+
 def pairs_average_and_std(pairs):
-    arr = np.array(pairs)
+    arr = np.array([pair for pair in pairs if pair is not None])
     assert arr.ndim == 2 
     assert arr.shape[1] == 2
     pair_averages = np.mean(arr, axis=0)
@@ -144,10 +155,28 @@ def pairs_average_and_std(pairs):
     return np.hstack((pair_averages, pair_stds))
 
 
-def save_figure(name):
+def mean_confidence_interval(data, alpha=0.95):
+    (n,) = data.shape
+    mu = np.mean(data)
+    sigma = np.std(data, ddof=1)/(n**0.5) # Standard error of the mean
+    (a,b) = scipy.stats.t.interval(alpha, df=n-1, loc=mu, scale=sigma)
+    return (a,b)
+    #return f'{(a+b)/2:.3f}\u00B1{(b-a)/2:.3f}'
+
+
+def print_results(list_of_validation_test_scores):
+    """Print validation vs. test set means with 95% confidence intervals"""
+    n = len(list_of_validation_test_scores)
+    (mean_val_error, mean_test_error, val_error_std, test_error_std) = pairs_average_and_std(list_of_validation_test_scores)
+    print(f'Validation error: {mean_val_error:.3f}\u00B1{1.96*val_error_std/(n**0.5):.3f}')
+    print(f'Test error: {mean_test_error:.3f}\u00B1{1.96*test_error_std/(n**0.5):.3f}')
+
+
+def save_figure(name, subdir=''):
     import matplotlib.pyplot as plt
-    pickler.mkdir_recursively(FIGURES_PATH)
-    filename = os.path.join(FIGURES_PATH, name).replace('.','_') + '.pdf'
+    DIR = os.path.join(FIGURES_PATH, subdir).replace('.','_')
+    pickler.mkdir_recursively(DIR)
+    filename = os.path.join(DIR, name).replace('.','_') + '.pdf'
     print('Saving figure to', filename)
     plt.savefig(filename, dpi=DPI, bbox_inches='tight')
 

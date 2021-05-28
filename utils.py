@@ -3,7 +3,12 @@ import collections
 import time
 
 
-def groupby(seq, keyfunc, mapfunc = None):
+def pnlines(lines):
+    "Print numbered lines"
+    for (i, line) in enumerate(lines):
+        print(f'{i}: {str(line)}')
+
+def groupby(seq, keyfunc = lambda x:x, mapfunc = None):
     d = collections.defaultdict(lambda:[])
     if mapfunc == None:
         for x in seq:
@@ -19,10 +24,10 @@ class Timer(object):
         if text != None:
             print('{}:'.format(text)), 
         sys.stdout.flush()
-        self.start_clock = time.clock()
+        self.start_clock = time.perf_counter()
         self.start_time = time.time()
     def stop(self):
-        print(f'Wall time: {time.time() - self.start_time:.2f} seconds.  CPU time: {time.clock() - self.start_clock:.2f} seconds.')
+        print(f'Wall time: {time.time() - self.start_time:.2f} seconds.  CPU time: {time.perf_counter() - self.start_clock:.2f} seconds.')
     def __enter__(self):
         return self
     def __exit__(self, type, value, tb):

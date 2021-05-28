@@ -1,3 +1,15 @@
+"""
+Supporting code for the paper
+    "On the cross-validation bias due to unsupervised pre-processing" by Amit Moscovich and Saharon Rosset.
+https://arxiv.org/abs/1901.08974v4
+
+This module contains the simulation and plotting routines used to generate the main synthetic example of the paper:
+Section "4. Main example: feature selection for high-dimensional linear regression". Figures 1 and 3.
+
+Author:
+    Amit Moscovich
+    amit@moscovich.org
+"""
 from collections import namedtuple
 
 import numpy as np
@@ -6,42 +18,23 @@ from numpy.random import random, normal, laplace, standard_t
 from sklearn.linear_model import LinearRegression
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.base import BaseEstimator
-from sklearn.feature_selection.base import SelectorMixin
+from sklearn.feature_selection import SelectorMixin
 from sklearn.utils.validation import check_is_fitted
 
-from simulations_framework import parallel_montecarlo, simulate_validation_vs_holdout_mse, average_and_std, pairs_average_and_std, save_figure
+from simulations_framework import parallel_montecarlo, simulate_validation_vs_holdout_mse, average_and_std, pairs_average_and_std, save_figure, print_results
 import pickler
 
 from utils import Timer, Profiler, beep
 
 RANDOM_SEED = 7
+NOISE_MULTIPLIER = 1
 
-ParamsSparseLinearRegression = namedtuple('ParamsSparseLinearRegression', 'n_train n_validation n_holdout D df K_strong_columns strong_column_multiplier K')
+ParamsSparseLinearRegression = namedtuple('ParamsSparseLinearRegression', 'n_train n_validation n_holdout D df K_strong_columns strong_column_multiplier K noise_variance')
 
 
 def top_k_indices(a, k):
     assert 1 <= k <= len(a)
     return np.argpartition(a, -k)[-k:]
-
-
-#class TopKVarianceVariableSelector(SelectorMixin, BaseEstimator):
-#    def __init__(self, K):
-#        self.K = K
-#        self._is_fitted = False
-#
-#    def fit(self, X):
-#        self._variances = np.var(X, axis=0)
-#        self._selected_variables = top_k_indices(self._variances, self.K)
-#        self._is_fitted = True
-#        return self
-#
-#    def _get_support_mask(self):
-#        assert self._is_fitted
-#
-#        mask = np.zeros(len(self._variances), np.bool)
-#        mask[self._selected_variables] = True
-#
-#        return mask
 
 
 class TopKVarianceVariableSelector:
@@ -88,34 +81,14 @@ class TopKSumSquares:
         return X[:,self._selected_variables]
 
 
-class FirstKColumnsSelector:
-    def __init__(self, K):
-        self.K = K
-
-    def fit(self, X):
-        pass
-
-    def transform(self, X):
-        return X[:,:self.K]
-
-
-class LastKColumnsSelector:
-    def __init__(self, K):
-        self.K = K
-
-    def fit(self, X):
-        pass
-
-    def transform(self, X):
-        return X[:,-self.K:]
-
-
 class DatagenSparseDesignLinReg:
-    def __init__(self, dimension, t_distribution_df, K_strong_columns, strong_column_multiplier):
+    def __init__(self, dimension, t_distribution_df, K_strong_columns, strong_column_multiplier, noise_variance):
         self.dimension = dimension
         self.t_distribution_df = t_distribution_df
         self.K_strong_columns = K_strong_columns
         self.strong_column_multiplier = strong_column_multiplier
+        assert noise_variance >= 0
+        self.noise_variance = noise_variance
 
         #self.feature_scales = 1 + strong_feature_multiplier*(random(size=(1,dimension)) < prob_strong_feature)
         self.beta = normal(size=(self.dimension,1))
@@ -127,82 +100,26 @@ class DatagenSparseDesignLinReg:
         #X = normal(size=(n,self.dimension))
         X[:,:self.K_strong_columns] *= self.strong_column_multiplier
         Y = (X @ self.beta).reshape(n)
+        noise = normal(scale=self.noise_variance**0.5, size=n)
         #print(f'X: {repr(X)}')
-        #print(f'Y: {repr(Y)}')
+        #rint(f'Y: {repr(Y)}')
+        #rint(f'noise: {repr(noise)}')
 
-        return (X,Y)
+        return (X,Y+noise)
 
 
 def simulate(params):
     return simulate_validation_vs_holdout_mse(params.n_train, params.n_validation, params.n_holdout,
-            data_generator = DatagenSparseDesignLinReg(params.D, params.df, params.K_strong_columns, params.strong_column_multiplier),
+            data_generator = DatagenSparseDesignLinReg(params.D, params.df, params.K_strong_columns, params.strong_column_multiplier, params.noise_variance),
             transformation = TopKVarianceVariableSelector(params.K),
             predictor = LinearRegression(fit_intercept=False))
 
+
 def simulate_ss(params):
     return simulate_validation_vs_holdout_mse(params.n_train, params.n_validation, params.n_holdout,
-            data_generator = DatagenSparseDesignLinReg(params.D, params.df, params.K_strong_columns, params.strong_column_multiplier),
+            data_generator = DatagenSparseDesignLinReg(params.D, params.df, params.K_strong_columns, params.strong_column_multiplier, params.noise_variance),
             transformation = TopKSumSquares(params.K),
             predictor = LinearRegression(fit_intercept=False))
-
-class CheatingLinearRegression:
-    def __init__(self, datagen, transformation):
-        self.datagen = datagen
-        self.transformation = transformation
-
-    def fit(self, X, Y):
-        pass
-
-    def predict(self, X):
-        prediction = X @ self.datagen.beta[self.transformation._selected_variables]
-        (n, ncol) = prediction.shape
-        assert ncol == 1
-        return prediction.reshape((n,))
-
-
-def simulate_with_cheating(params):
-    datagen = DatagenSparseDesignLinReg(params.D, params.df, params.K_strong_columns, params.strong_column_multiplier)
-    transformation = TopKVarianceVariableSelector(params.K)
-    return simulate_validation_vs_holdout_mse(params.n_train, params.n_validation, params.n_holdout,
-            data_generator = datagen,
-            transformation = transformation,
-            predictor = CheatingLinearRegression(datagen, transformation))
-
-
-def simulate_ss_with_cheating(params):
-    datagen = DatagenSparseDesignLinReg(params.D, params.df, params.K_strong_columns, params.strong_column_multiplier)
-    transformation = TopKSumSquares(params.K)
-    return simulate_validation_vs_holdout_mse(params.n_train, params.n_validation, params.n_holdout,
-            data_generator = datagen,
-            transformation = transformation,
-            predictor = CheatingLinearRegression(datagen, transformation))
-
-
-def simulate_first_K_columns(params):
-    return simulate_validation_vs_holdout_mse(params.n_train, params.n_validation, params.n_holdout,
-            data_generator = DatagenSparseDesignLinReg(params.D, params.df, params.K_strong_columns, params.strong_column_multiplier),
-            transformation = FirstKColumnsSelector(params.K),
-            predictor = LinearRegression())
-
-
-def simulate_last_K_columns(params):
-    return simulate_validation_vs_holdout_mse(params.n_train, params.n_validation, params.n_holdout,
-            data_generator = DatagenSparseDesignLinReg(params.D, params.df, params.K_strong_columns, params.strong_column_multiplier),
-            transformation = LastKColumnsSelector(params.K),
-            predictor = LinearRegression())
-
-
-def print_results(list_of_validation_test_scores):
-    n = len(list_of_validation_test_scores)
-    (mean_val_error, mean_test_error, val_error_std, test_error_std) = pairs_average_and_std(list_of_validation_test_scores)
-    print(f'Validation error: {mean_val_error:.3f}\u00B1{1.96*val_error_std/(n**0.5):.3f}')
-    print(f'Test error: {mean_test_error:.3f}\u00B1{1.96*test_error_std/(n**0.5):.3f}')
-
-def identity(x):
-    return x
-
-def test(k, simulation_function=simulate):
-    print_results(parallel_montecarlo(None, simulation_function, identity, [ParamsSparseLinearRegression(n_train=10, n_validation=10, n_holdout=10, D=20, df=4, K_strong_columns=5, K=k)], n_repetitions=10000, seed=7)[0]) 
 
 
 class ZeroPredictor:
@@ -214,43 +131,43 @@ class ZeroPredictor:
         return np.zeros(n)
 
 
-class IdentityTransformation:
-    def __init__(self, *args):
-        pass
-
-    def fit(self, X):
-        pass
-
-    def transform(self, X):
-        return X
-
-
 def simulate_null_model(params):
-    gen = DatagenSparseDesignLinReg(params.D, params.df, params.K_strong_columns, params.strong_column_multiplier)
+    gen = DatagenSparseDesignLinReg(params.D, params.df, params.K_strong_columns, params.strong_column_multiplier, params.noise_variance)
     (X,Y) = gen.generate(params.n_holdout)
     return np.mean(Y**2)
 
 
-def precalc(simulation_function, n_range, D, df, K_strong_columns, strong_column_multiplier, K, reps):
-    "Run multiple repetitions of simulate_gaussian_design() and save the results in a pickle file."
-    fn_K2 = f'variable_selected_linear_regression_K2_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}'
-    params_K2 = [ParamsSparseLinearRegression(n, n, n, D, df, K_strong_columns, strong_column_multiplier, K) for n in n_range]
+def compute_noise_variance(D, K_strong_columns, strong_column_multiplier, noise_multiplier):
+    """
+    Recall that y = X * \beta
+    where X is a vector of D independent samples from some distribution and \beta is a vector of N(0,1) variables.
+    The first K_strong_columns of X are multiplied by strong_column_multiplier the variance of Y is proportional to
+    K_strong_columns*(strong_column_multiplier**2) + (D-K_strong_columns)
+    """
+    return noise_multiplier*(K_strong_columns*(strong_column_multiplier**2) + (D-K_strong_columns))
 
-    fn_LOO = f'variable_selected_linear_regression_LOO_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}'
-    params_LOO = [ParamsSparseLinearRegression(n, 1, n, D, df, K_strong_columns, strong_column_multiplier, K) for n in n_range]
+
+def precalc(simulation_function, n_range, D, df, K_strong_columns, strong_column_multiplier, K, noise_multiplier, reps):
+    "Run multiple repetitions of simulate_gaussian_design() and save the results in a pickle file."
+    noise_variance = compute_noise_variance(D, K_strong_columns, strong_column_multiplier, noise_multiplier)
+    fn_K2 = f'variable_selected_linear_regression_K2_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}_noisemul{noise_multiplier:.2f}'
+    params_K2 = [ParamsSparseLinearRegression(n, n, n, D, df, K_strong_columns, strong_column_multiplier, K, noise_variance) for n in n_range]
+
+    fn_LOO = f'variable_selected_linear_regression_LOO_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}_noisemul{noise_multiplier:.2f}'
+    params_LOO = [ParamsSparseLinearRegression(n, 1, n, D, df, K_strong_columns, strong_column_multiplier, K, noise_variance) for n in n_range]
 
     for (filename, job_params) in [(fn_K2, params_K2), (fn_LOO, params_LOO)]:
         with Timer(f'{filename} ({reps} repetitions)'):
             parallel_montecarlo(filename, simulation_function, pairs_average_and_std, job_params, reps, seed=RANDOM_SEED)
+        print('')
 
-    fn_null_model = f'variable_selected_linear_regression_null_model_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}'
+    fn_null_model = f'variable_selected_linear_regression_null_model_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_noisemul{noise_multiplier:.2f}'
     null_reps = reps*sum(n_range)
     with Timer(f'{fn_null_model} (repetitions {null_reps})'):
-        parallel_montecarlo(fn_null_model, simulate_null_model, average_and_std, [ParamsSparseLinearRegression(0, 0, sum(n_range), D, df, K_strong_columns, strong_column_multiplier, -1)], reps, seed=RANDOM_SEED)
+        parallel_montecarlo(fn_null_model, simulate_null_model, average_and_std, [ParamsSparseLinearRegression(0, 0, sum(n_range), D, df, K_strong_columns, strong_column_multiplier, -1, noise_variance)], reps, seed=RANDOM_SEED)
         
 
-
-def plot_test_vs_validation_set(filename_prefix, D, df, K_strong_columns, strong_column_multiplier, K, xlim=None, ylim=None, xticks=None, yticks=None):
+def plot_test_vs_validation_set(filename_prefix, D, df, K_strong_columns, strong_column_multiplier, K, noise_multiplier, xlim=None, ylim=None, xticks=None, yticks=None):
     """
     Plot a single figure which compares the expected validation and generalization errors
     for various numbers of training samples (n), using either m=1 or m=n validation samples.
@@ -262,18 +179,17 @@ def plot_test_vs_validation_set(filename_prefix, D, df, K_strong_columns, strong
     ax = plt.axes()
     ax.yaxis.grid(True)
 
-
-    d = pickler.load(f'variable_selected_linear_regression_K2_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}')
+    d = pickler.load(f'variable_selected_linear_regression_K2_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}_noisemul{noise_multiplier:.2f}')
     x_values = [x.n_train for x in d.xs]
     plt.plot(x_values, d.results[:,0], 'C0-', linewidth=1.5, label=r'$\mathrm{e}_{\mathrm{val}}(m=n)$')
     plt.plot(x_values, d.results[:,1], 'C1-', linewidth=1.5, label=r'$\mathrm{e}_{\mathrm{gen}}(m=n)$')
 
-    d = pickler.load(f'variable_selected_linear_regression_LOO_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}')
+    d = pickler.load(f'variable_selected_linear_regression_LOO_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}_noisemul{noise_multiplier:.2f}')
     x_values = [x.n_train for x in d.xs]
     plt.plot(x_values, d.results[:,0], 'C0--', linewidth=1.5, label=r'$\mathrm{e}_{\mathrm{val}}(m=1)$')
     plt.plot(x_values, d.results[:,1], 'C1--', linewidth=1.5, label=r'$\mathrm{e}_{\mathrm{gen}}(m=1)$')
 
-    d = pickler.load(f'variable_selected_linear_regression_null_model_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}')
+    d = pickler.load(f'variable_selected_linear_regression_null_model_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_noisemul{noise_multiplier:.2f}')
     null_mse = d.results[0][0]
     plt.plot([min(x_values), max(x_values)], [null_mse, null_mse], 'k:', linewidth=1.0, label='Null model')
 
@@ -288,38 +204,47 @@ def plot_test_vs_validation_set(filename_prefix, D, df, K_strong_columns, strong
         plt.yticks(yticks)
     
     plt.legend(loc='best')
-    output_name = f'{filename_prefix}_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}_reps{d.n_repetitions}'
-    save_figure(output_name)
+    output_name = f'{filename_prefix}_D{D}_df{df}_Kstrong{K_strong_columns}_multiplier{strong_column_multiplier}_K{K}_noisemul{noise_multiplier:.2f}_reps{d.n_repetitions}'
+    save_figure(output_name, f'noise_{noise_multiplier:.2f}')
 
 
-def precalc_all(reps_lowdim=1000000, reps_highdim=1000000):
+def precalc_all(reps_lowdim=100000, reps_highdim=100000):
     # To simplify the code, we use t-distribution with 1,000,000 degrees of freedom when we want to generate Gaussian data.
     # (asymptotically the t distribution converges to N(0,1))
 
+    print('='*80)
     print(f'Precalculating variable-selected linear regression D=100, t-distribution df=4, #repetitions = {reps_lowdim}')
-    precalc(simulate, n_range=range(15,50,5), D=100, df=4, K_strong_columns=4, strong_column_multiplier=4, K=8, reps=reps_lowdim) 
+    precalc(simulate, n_range=range(20,65,5), D=100, df=4, K_strong_columns=5, strong_column_multiplier=5, K=10, noise_multiplier=NOISE_MULTIPLIER, reps=reps_lowdim) 
+
+    print('='*80)
     print(f'Precalculating variable-selected linear regression D=100, N(0,1), #repetitions = {reps_lowdim}')
-    precalc(simulate, n_range=range(15,50,5), D=100, df=1000000, K_strong_columns=4, strong_column_multiplier=4, K=8, reps=reps_lowdim) 
+    precalc(simulate, n_range=range(20,65,5), D=100, df=1000000, K_strong_columns=5, strong_column_multiplier=5, K=10, noise_multiplier=NOISE_MULTIPLIER, reps=reps_lowdim) 
 
+    print('='*80)
     print(f'Precalculating variable-selected linear regression D=1000, t-distribution df=4, #repetitions = {reps_highdim}')
-    precalc(simulate, n_range=range(20,160,10), D=1000, df=4, K_strong_columns=4, strong_column_multiplier=16, K=8, reps=reps_highdim) 
-    print(f'Precalculating variable-selected linear regression D=1000, N(0,1), #repetitions = {reps_highdim}')
-    precalc(simulate, n_range=range(20,160,10), D=1000, df=1000000, K_strong_columns=4, strong_column_multiplier=16, K=8, reps=reps_highdim) 
+    precalc(simulate, n_range=range(200,650,50), D=1000, df=4, K_strong_columns=10, strong_column_multiplier=10, K=100, noise_multiplier=NOISE_MULTIPLIER, reps=reps_highdim) 
 
+    print('='*80)
+    print(f'Precalculating variable-selected linear regression D=1000, N(0,1), #repetitions = {reps_highdim}')
+    precalc(simulate, n_range=range(200,650,50), D=1000, df=1000000, K_strong_columns=10, strong_column_multiplier=10, K=100, noise_multiplier=NOISE_MULTIPLIER, reps=reps_highdim) 
+
+    print('='*80)
     print(f'Precalculating variable-selected linear regression D=50, t-distribution df=4, K=1, #repetitions = {reps_lowdim}')
-    precalc(simulate_ss, n_range=range(5,50,5), D=50, df=4, K_strong_columns=1, strong_column_multiplier=1, K=1, reps=reps_lowdim)
+    precalc(simulate_ss, n_range=range(5,45,5), D=50, df=4, K_strong_columns=1, strong_column_multiplier=1, K=1, noise_multiplier=0, reps=reps_lowdim)
+
+    print('='*80)
     print(f'Precalculating variable-selected linear regression D=50, N(0,1), K=1, #repetitions = {reps_lowdim}')
-    precalc(simulate_ss, n_range=range(5,50,5), D=50, df=1000000, K_strong_columns=1, strong_column_multiplier=1, K=1, reps=reps_lowdim)
+    precalc(simulate_ss, n_range=range(5,45,5), D=50, df=1000000, K_strong_columns=1, strong_column_multiplier=1, K=1, noise_multiplier=0, reps=reps_lowdim)
 
 
 def plot_all():
-    plot_test_vs_validation_set('variance_filtered_linear_regression', D=100, df=4, K_strong_columns=4, strong_column_multiplier=4, K=8, xticks=range(15,50,5), ylim=[200,800]) 
-    plot_test_vs_validation_set('variance_filtered_linear_regression',D=100, df=1000000, K_strong_columns=4, strong_column_multiplier=4, K=8, xticks=range(15,50,5))#, xlim=[15,45], ylim=[200,800]) 
+    plot_test_vs_validation_set('variance_filtered_linear_regression', D=100, df=4, K_strong_columns=5, strong_column_multiplier=5, K=10, noise_multiplier=NOISE_MULTIPLIER, xticks=range(20,65,5))#, xlim=[20,60], ylim=[200,400]) 
+    plot_test_vs_validation_set('variance_filtered_linear_regression',D=100, df=1000000, K_strong_columns=5, strong_column_multiplier=5, K=10, noise_multiplier=NOISE_MULTIPLIER,  xticks=range(20,65,5))#, xlim=[20,60], ylim=[100,180])
 
-    plot_test_vs_validation_set('variance_filtered_linear_regression', D=1000, df=4, K_strong_columns=4, strong_column_multiplier=16, K=8, xlim=[20,150], ylim=[2000,6000], xticks=np.arange(20,160,20)) 
-    plot_test_vs_validation_set('variance_filtered_linear_regression', D=1000, df=1000000, K_strong_columns=4, strong_column_multiplier=16, K=8, xlim=[20,150], ylim=[1000,1500], xticks=np.arange(20,160,20))#, xlim=[20,200], ylim=[2000,6000]) 
+    plot_test_vs_validation_set('variance_filtered_linear_regression', D=1000, df=4, K_strong_columns=10, strong_column_multiplier=10, K=100, noise_multiplier=NOISE_MULTIPLIER,  xticks=range(200,650,50))#, xlim=[200,600], ylim=[2000,4000])
+    plot_test_vs_validation_set('variance_filtered_linear_regression', D=1000, df=1000000, K_strong_columns=10, strong_column_multiplier=10, K=100, noise_multiplier=NOISE_MULTIPLIER,  xticks=range(200,650,50))#, xlim=[200,600], ylim=[1000,1800])
 
-    plot_test_vs_validation_set('norm_filtered_linear_regression', D=50, df=4, K_strong_columns=1, strong_column_multiplier=1, K=1, xlim=[5,40], xticks=np.arange(5,45,5)) 
-    plot_test_vs_validation_set('norm_filtered_linear_regression', D=50, df=1000000, K_strong_columns=1, strong_column_multiplier=1, K=1, xlim=[5,40], xticks=np.arange(5,45,5)) 
+    plot_test_vs_validation_set('norm_filtered_linear_regression', D=50, df=4, K_strong_columns=1, strong_column_multiplier=1, K=1, noise_multiplier=0, xticks=np.arange(5,45,5)) 
+    plot_test_vs_validation_set('norm_filtered_linear_regression', D=50, df=1000000, K_strong_columns=1, strong_column_multiplier=1, K=1, noise_multiplier=0, xticks=np.arange(5,45,5)) 
 
 

@@ -1,3 +1,10 @@
+"""
+Helper routines for dumping and loading data into gzip files.
+
+Author:
+    Amit Moscovich
+    amit@moscovich.org
+"""
 import os
 import pickle
 import gzip

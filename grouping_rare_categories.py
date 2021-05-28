@@ -1,10 +1,10 @@
 """
 Supporting code for the paper
-    "Rescaling and other forms of unsupervised preprocessing may bias cross-validation"
-    by Amit Moscovich and Saharon Rosset.
+    "On the cross-validation bias due to unsupervised pre-processing" by Amit Moscovich and Saharon Rosset.
+https://arxiv.org/abs/1901.08974v4
 
-This module contains the simulation and graph plotting routines used for making the 
-filtered categorical variable figures, which appear in section "Example 1:  grouping of rare categories".
+This module contains the simulation and graph plotting routines used in Section 5.1. "Grouping of rare categories"
+that involve categorical variable pooling.
 
 Author:
     Amit Moscovich
@@ -148,13 +148,11 @@ def plot_test_vs_validation_set(output_name, C, sigma, M, xlim=None, ylim=None, 
     ax.yaxis.grid(True)
 
     d = pickler.load(f'categorical_K2_C{C}_sigma{sigma:.2f}_M{M}'.replace('.','_'))
-    print('pairs_std:\n', d.results[:,2:])
     x_values = [x.n_train for x in d.xs]
     plt.plot(x_values, d.results[:,0], 'C0-', label=r'$\mathrm{e}_{\mathrm{val}}(m=n)$')
     plt.plot(x_values, d.results[:,1], 'C1-', label=r'$\mathrm{e}_{\mathrm{gen}}(m=n)$')
 
     d = pickler.load(f'categorical_LOO_C{C}_sigma{sigma:.2f}_M{M}'.replace('.','_'))
-    print('pairs_std:\n', d.results[:,2:])
     x_values = [x.n_train for x in d.xs]
     plt.plot(x_values, d.results[:,0], 'C0--', label=r'$\mathrm{e}_{\mathrm{val}}(m=1)$')
     plt.plot(x_values, d.results[:,1], 'C1--', label=r'$\mathrm{e}_{\mathrm{gen}}(m=1)$')

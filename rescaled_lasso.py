@@ -1,10 +1,10 @@
 """
 Supporting code for the paper
-    "Rescaling and other forms of unsupervised preprocessing may bias cross-validation"
-    by Amit Moscovich and Saharon Rosset.
+    "On the cross-validation bias due to unsupervised pre-processing" by Amit Moscovich and Saharon Rosset.
+https://arxiv.org/abs/1901.08974v4
 
-This module contains the simulation and graph plotting routines used for making the rescaled Lasso
-figures, which appear in section "Example 2: rescaling prior to Lasso linear regression".
+This module contains the simulation and graph plotting routines used for running the rescaled Lasso simulations,
+which appear in section "5.2. Rescaling prior to Lasso linear regression"
 
 Author:
     Amit Moscovich
@@ -18,6 +18,7 @@ from mkl_random import normal, choice
 from numpy.linalg import svd, norm, qr
 from scipy.stats import ortho_group
 from sklearn.linear_model import Lasso
+from sklearn.base import BaseEstimator, TransformerMixin
 
 from simulations_framework import parallel_montecarlo, simulate_validation_vs_holdout_mse, pairs_average_and_std, save_figure
 from utils import Timer
@@ -38,16 +39,18 @@ RANDOM_SEED = 7
 ParamsRescaledLasso = namedtuple('ParamsRescaledLasso', 'n_train n_validation n_holdout D sigma alpha')
 
 
-class ScalerAssumingZeroMean:
+class ScalerAssumingZeroMean(TransformerMixin, BaseEstimator):
     """
     This preliminary unsupervised transformation is similar to sklearn.preprocessing.StandardScaler,
     which rescales every feature to have zero mean and unit variance.
     The only difference is that this transformer assumes that the mean is zero, rather than estimating it.
     """
-    def fit(self, X):
+    def fit(self, X, Y=None):
         (n,p) = X.shape
 
         self.feature_std = sqrt(sum(X**2,0)/n)
+
+        return self
 
     def transform(self, X):
         return X / self.feature_std[newaxis,:]
@@ -107,15 +110,11 @@ def precalc_all(lowdim_reps, highdim_reps):
     This takes aroun 1.5 years of computation on a single core using the parameters from the paper (lowdim_reps=10**7 highdim_reps=10**6)
     so run this on a multicore machine or use less repetitions.
     """
-    for sigma in [0, 0.1, 1]:
-        print('Precalculating low-dimensional rescaled Lasso, sigma =', sigma, ' #repetitions = ', lowdim_reps)
-        print('Each of these simulations in dimension D=5 takes around 10 hours per 1 million iterations on a 2016 Intel Xeon core')
-        precalc(D=5, sigma=sigma, alpha=0.5, n_range=arange(10,110,10), reps=lowdim_reps)
+    print('Precalculating low-dimensional rescaled Lasso, #repetitions = ', lowdim_reps)
+    precalc(D=5, sigma=0.1, alpha=0.5, n_range=arange(10,110,10), reps=lowdim_reps)
 
-    for sigma in [0, 1, 10]:
-        print('Precalculating noiseless high-dimensional rescaled Lasso, sigma =', sigma, ' #repetitions = ', highdim_reps)
-        print('Each of these simulations in dimension D=10,000 takes around 180 days per 1 million iterations on a single 2016 Intel Xeon core.')
-        precalc(D=10000, sigma=sigma, alpha=0.1, n_range=range(20,220,20), reps=highdim_reps)
+    print('Precalculating noiseless high-dimensional rescaled Lasso, #repetitions = ', highdim_reps)
+    precalc(D=10000, sigma=1.0, alpha=0.1, n_range=range(20,220,20), reps=highdim_reps)
 
 
 def plot_test_vs_validation_set(D, sigma, alpha, xlim=None, ylim=None, xticks=None, yticks=None):
@@ -157,11 +156,7 @@ def plot_test_vs_validation_set(D, sigma, alpha, xlim=None, ylim=None, xticks=No
 
 
 def plot_all():
-    plot_test_vs_validation_set(D=5, sigma=0, alpha=0.5, xticks=arange(10,110,10), xlim=[10,100], ylim=[0.59,0.68])
     plot_test_vs_validation_set(D=5, sigma=0.1, alpha=0.5, xticks=arange(10,110,10), xlim=[10,100], ylim=[0.6, 0.69])
-    plot_test_vs_validation_set(D=5, sigma=1.0, alpha=0.5, xticks=arange(10,110,10), xlim=[10,100], ylim=[1.58,1.67])
-    plot_test_vs_validation_set(D=10000, sigma=0, alpha=0.1, xticks=arange(20,220,20), xlim=[20,200], yticks=arange(1.07,1.18,0.01), ylim=[1.07,1.17])
     plot_test_vs_validation_set(D=10000, sigma=1.0, alpha=0.1, xticks=arange(20,220,20), xlim=[20,200], yticks=arange(2.2,2.36,0.02), ylim=[2.2,2.36])
-    plot_test_vs_validation_set(D=10000, sigma=10.0, alpha=0.1, xticks=arange(20,220,20), xlim=[20,200])
 
 
